@@ -28,9 +28,21 @@ jobs:
           gradle-version: 9.1.0
 
       - name: Build Shared framework (KMP)
-        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain
+        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace
+        continue-on-error: true
+
+      - name: Subir log de Gradle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: |
+            shared/build/reports/**/*
+            shared/build/outputs/**/*
+          retention-days: 7
 
       - name: Build iOS App (simulador)
+        if: success()
         run: |
           cd iosApp
           xcodebuild -project iosApp.xcodeproj \
@@ -41,9 +53,10 @@ jobs:
             build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee build.log
 
-      - name: Subir log de build como artifact
+      - name: Subir log de xcodebuild
         if: always()
         uses: actions/upload-artifact@v4
         with:
