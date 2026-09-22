@@ -1,6 +1,9 @@
 *.iml
 .kotlin
 .gradle
+evidencia/
+examen_parcial_u1_caso_andinasalud2_wp1zdbc0mh.pdf
+ENTREGABLE.md
 **/build/
 xcuserdata
 !src/**/build/
