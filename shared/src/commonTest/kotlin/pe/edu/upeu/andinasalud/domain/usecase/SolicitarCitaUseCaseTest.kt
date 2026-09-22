@@ -78,6 +78,64 @@ class SolicitarCitaUseCaseTest {
     }
 
     @Test
+    fun `RN-01 rechaza una cita un minuto antes del momento actual`() = runTest {
+        val caso = SolicitarCitaUseCase(FakeCitaRepository(emptyList()))
+
+        val excepcion = assertFailsWith<SolicitudInvalidaException> {
+            caso(
+                especialidad = "Medicina General",
+                sede = "Ñaña",
+                fecha = "2026-01-09",
+                hora = "23:59",
+                motivo = "Control general anual",
+                ahoraMillis = ahoraMillis
+            ).getOrThrow()
+        }
+
+        assertNotNull(excepcion.errores.fecha)
+    }
+
+    @Test
+    fun `RN-01 acepta una cita un minuto despues del momento actual`() = runTest {
+        val caso = SolicitarCitaUseCase(FakeCitaRepository(emptyList()))
+
+        val cita = caso(
+            especialidad = "Medicina General",
+            sede = "Ñaña",
+            fecha = "2026-01-10",
+            hora = "00:01",
+            motivo = "Control general anual",
+            ahoraMillis = ahoraMillis
+        ).getOrThrow()
+
+        assertTrue(cita.instanteEpochMillis > ahoraMillis)
+    }
+
+    @Test
+    fun `RN-02 permite la tercera programada cuando hay dos`() = runTest {
+        val repositorio = FakeCitaRepository(
+            listaInicial = listOf(
+                CitasDePrueba.programada(1, LocalDate.parse("2026-01-20")),
+                CitasDePrueba.programada(2, LocalDate.parse("2026-01-21"))
+            )
+        )
+        val caso = SolicitarCitaUseCase(repositorio)
+
+        val cita = caso(
+            especialidad = "Medicina General",
+            sede = "Ñaña",
+            fecha = "2026-01-22",
+            hora = "09:00",
+            motivo = "Control general anual",
+            ahoraMillis = ahoraMillis
+        ).getOrThrow()
+
+        assertEquals(3L, cita.id)
+        assertIs<EstadoCita.Programada>(cita.estado)
+        assertEquals(3, repositorio.registros.count { it.estado is EstadoCita.Programada })
+    }
+
+    @Test
     fun `RN-02 limita a tres citas programadas simultaneas`() = runTest {
         val repositorio = FakeCitaRepository(
             listaInicial = listOf(
@@ -118,6 +176,40 @@ class SolicitarCitaUseCaseTest {
         }
 
         assertNotNull(excepcion.errores.motivo)
+    }
+
+    @Test
+    fun `RN-04 rechaza un motivo de nueve caracteres`() = runTest {
+        val caso = SolicitarCitaUseCase(FakeCitaRepository(emptyList()))
+
+        val excepcion = assertFailsWith<SolicitudInvalidaException> {
+            caso(
+                especialidad = "Medicina General",
+                sede = "Ñaña",
+                fecha = "2026-01-12",
+                hora = "09:00",
+                motivo = "x".repeat(9),
+                ahoraMillis = ahoraMillis
+            ).getOrThrow()
+        }
+
+        assertNotNull(excepcion.errores.motivo)
+    }
+
+    @Test
+    fun `RN-04 acepta un motivo de exactamente diez caracteres`() = runTest {
+        val caso = SolicitarCitaUseCase(FakeCitaRepository(emptyList()))
+
+        val resultado = caso(
+            especialidad = "Medicina General",
+            sede = "Ñaña",
+            fecha = "2026-01-12",
+            hora = "09:00",
+            motivo = "x".repeat(10),
+            ahoraMillis = ahoraMillis
+        )
+
+        assertTrue(resultado.isSuccess)
     }
 
     @Test
@@ -197,6 +289,27 @@ class SolicitarCitaUseCaseTest {
         ).getOrThrow()
 
         assertEquals(LocalTime(10, 0), cita.hora)
+    }
+
+    @Test
+    fun `RN-05 permite una fecha diferente`() = runTest {
+        val repositorio = FakeCitaRepository(
+            listaInicial = listOf(
+                CitasDePrueba.programada(1, LocalDate.parse("2026-01-12"), LocalTime(9, 0))
+            )
+        )
+        val caso = SolicitarCitaUseCase(repositorio)
+
+        val cita = caso(
+            especialidad = "Medicina General",
+            sede = "Ñaña",
+            fecha = "2026-01-13",
+            hora = "09:00",
+            motivo = "Control general anual",
+            ahoraMillis = ahoraMillis
+        ).getOrThrow()
+
+        assertEquals(LocalDate.parse("2026-01-13"), cita.fecha)
     }
 
     @Test

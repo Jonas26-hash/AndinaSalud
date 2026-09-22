@@ -14,7 +14,7 @@ composeMultiplatform = "1.11.1"
 # y no se publica para Compose Multiplatform 1.8.0 en adelante.
 composeMaterialIcons = "1.7.3"
 coroutines = "1.10.2"
-datetime = "0.6.2"
+datetime = "0.7.1"
 junit = "4.13.2"
 koin = "4.2.2"
 kotlin = "2.4.10"

@@ -11,7 +11,7 @@
 - **5 reglas de negocio** (RN-01 … RN-05) implementadas en el dominio y cubiertas por pruebas.
 - **Buscador inteligente**: filtra por especialidad u médico, sin que importen tildes ni mayúsculas.
 - **Tema oscuro** activable desde el perfil.
-- **76 pruebas automatizadas** pasando en verde.
+- **82 pruebas automatizadas** pasando en verde.
 - **Cero base de datos, cero red**: toda la información vive en memoria, de pura arquitectura.
 
 ## 🧱 Stack tecnológico
@@ -71,14 +71,49 @@ adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ## 🧪 Cómo correr los tests
 
 ```bash
-./gradlew :shared:testAndroidHostTest     # 76 tests en verde
+./gradlew :shared:testAndroidHostTest     # 82 tests en verde
 ```
 
 > Nota: la suite iOS (`iosSimulatorArm64Test`) solo se ejecuta en **macOS**.
 
-## 📱 iOS (pendiente)
+## 🔁 Flujo de datos
 
-El proyecto está generado y listo, pero compilar requiere macOS con Xcode:
+```
+Pantalla (Compose)
+   │  UiState → recibe estado; Lambdas → emite intención
+   ▼
+ViewModel (StateFlow + MutableStateFlow privado)
+   │  llama
+   ▼
+Caso de uso (reglas RN-01…RN-05 en el dominio)
+   │  llama
+   ▼
+CitaRepository (interfaz, en domain) ──> CitaRepositoryFake (en data, en memoria)
+```
+
+- La UI **nunca** toca `CitasSimuladas` ni el repositorio: solo pasa por el ViewModel.
+- El retardo (800 ms) se simula con `delay()` dentro del repositorio; no hay red ni base de datos.
+
+## 💉 Inyección de dependencias (Koin)
+
+`AppModule` registra, en `commonMain` y disponible para ambas plataformas:
+
+| Registro | Tipo |
+|---|---|
+| `single<CitaRepository>` | `CitaRepositoryFake()` (en memoria) |
+| `factory` | `ObtenerCitasUseCase`, `SolicitarCitaUseCase`, `CancelarCitaUseCase` |
+| `viewModel` | `InicioViewModel`, `CitasViewModel`, `DetalleCitaViewModel`, `SolicitudViewModel`, `PerfilViewModel` |
+
+- **Android**: se arranca en `MainApplication` con `androidLogger` + `androidContext`.
+- **iOS**: se arranca con `KoinIosKt.doInitKoinIos()` en el `init()` de `iOSApp`.
+
+## 📱 iOS
+
+Configurado para dispositivos **ARM64** y simulador **ARM64** en el módulo `shared`
+(targets `iosArm64` + `iosSimulatorArm64`, framework estático `Shared`). El `iosApp`
+embebe el framework con `embedAndSignAppleFrameworkForXcode`.
+
+Compilar requiere **macOS con Xcode**; desde Windows no se puede verificar:
 
 ```bash
 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator
