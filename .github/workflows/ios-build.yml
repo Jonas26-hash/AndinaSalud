@@ -48,7 +48,7 @@ jobs:
           xcodebuild -project iosApp.xcodeproj \
             -scheme iosApp \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO \
