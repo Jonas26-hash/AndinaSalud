@@ -11,7 +11,7 @@
 - **5 reglas de negocio** (RN-01 … RN-05) implementadas en el dominio y cubiertas por pruebas.
 - **Buscador inteligente**: filtra por especialidad u médico, sin que importen tildes ni mayúsculas.
 - **Tema oscuro** activable desde el perfil.
-- **76 pruebas automatizadas** pasando en verde.
+- **82 pruebas automatizadas** pasando en verde.
 - **Cero base de datos, cero red**: toda la información vive en memoria, de pura arquitectura.
 
 ## 🧱 Stack tecnológico
@@ -71,18 +71,89 @@ adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
 ## 🧪 Cómo correr los tests
 
 ```bash
-./gradlew :shared:testAndroidHostTest     # 76 tests en verde
+./gradlew :shared:testAndroidHostTest     # 82 tests en verde
 ```
 
 > Nota: la suite iOS (`iosSimulatorArm64Test`) solo se ejecuta en **macOS**.
 
-## 📱 iOS (pendiente)
+## 🔁 Flujo de datos
 
-El proyecto está generado y listo, pero compilar requiere macOS con Xcode:
+```
+Pantalla (Compose)
+   │  UiState → recibe estado; Lambdas → emite intención
+   ▼
+ViewModel (StateFlow + MutableStateFlow privado)
+   │  llama
+   ▼
+Caso de uso (reglas RN-01…RN-05 en el dominio)
+   │  llama
+   ▼
+CitaRepository (interfaz, en domain) ──> CitaRepositoryFake (en data, en memoria)
+```
+
+- La UI **nunca** toca `CitasSimuladas` ni el repositorio: solo pasa por el ViewModel.
+- El retardo (800 ms) se simula con `delay()` dentro del repositorio; no hay red ni base de datos.
+
+## 💉 Inyección de dependencias (Koin)
+
+`AppModule` registra, en `commonMain` y disponible para ambas plataformas:
+
+| Registro | Tipo |
+|---|---|
+| `single<CitaRepository>` | `CitaRepositoryFake()` (en memoria) |
+| `factory` | `ObtenerCitasUseCase`, `SolicitarCitaUseCase`, `CancelarCitaUseCase` |
+| `viewModel` | `InicioViewModel`, `CitasViewModel`, `DetalleCitaViewModel`, `SolicitudViewModel`, `PerfilViewModel` |
+
+- **Android**: se arranca en `MainApplication` con `androidLogger` + `androidContext`.
+- **iOS**: se arranca con `KoinIosKt.doInitKoinIos()` en el `init()` de `iOSApp`.
+
+## 📱 iOS
+
+Configurado para dispositivos **ARM64** y simulador **ARM64** en el módulo `shared`
+(targets `iosArm64` + `iosSimulatorArm64`, framework estático `Shared`). El `iosApp`
+embebe el framework con `embedAndSignAppleFrameworkForXcode`.
+
+### Compilación en macOS (local)
 
 ```bash
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator
+# 1. Compilar el framework compartido (KMP)
+./gradlew :shared:embedAndSignAppleFrameworkForXcode
+
+# 2. Abrir el proyecto en Xcode y compilar para simulador
+cd iosApp
+xcodebuild -project iosApp.xcodeproj \
+  -scheme iosApp \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -configuration Debug \
+  build \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO
 ```
+
+### Compilación mediante GitHub Actions (CI)
+
+El workflow `.github/workflows/ios-build.yml` se ejecuta automáticamente en cada push a `main` o `develop`:
+
+1. Compila el framework `Shared` con Gradle (`:shared:embedAndSignAppleFrameworkForXcode`)
+2. Detecta automáticamente un simulador iPhone ARM64 disponible en el runner macOS
+3. Compila la app iOS con `xcodebuild` para simulador (sin firma: `CODE_SIGNING_ALLOWED=NO`)
+4. Sube logs como artifacts (`gradle-build-log`, `ios-build-log`)
+
+**Ver runs**: https://github.com/Jonas26-hash/AndinaSalud/actions/workflows/ios-build.yml
+
+### Diferencia: Compilación vs Ejecución real
+
+| Aspecto | Compilación (CI / `xcodebuild build`) | Ejecución real en dispositivo |
+|---------|----------------------------------------|------------------------------|
+| **Qué hace** | Verifica que el código compila y linkea correctamente | Instala y ejecuta la app en hardware |
+| **Firma** | No requerida (`CODE_SIGNING_ALLOWED=NO`) | Requiere Apple Developer Program ($99/año) + certificado + provisioning profile |
+| **Simulador** | Funciona en CI (macOS runners de GitHub) | Requiere macOS local + Xcode |
+| **Dispositivo físico** | No | Sí, solo con certificado válido |
+| **Estado actual** | ✅ **Verificado en CI** (simulador ARM64) | ❌ No verificado (requiere cuenta Apple Developer) |
+
+> **Nota honesta**: El proyecto compila correctamente para simulador ARM64 (evidencia en GitHub Actions). La ejecución en dispositivo físico real no se ha verificado por requerir cuenta de desarrollador Apple de pago. Desde Windows no es posible compilar iOS.
 
 ---
 
