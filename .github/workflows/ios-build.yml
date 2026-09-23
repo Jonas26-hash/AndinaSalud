@@ -28,7 +28,9 @@ jobs:
           gradle-version: 9.1.0
 
       - name: Build Shared framework (KMP)
-        run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace
+        run: |
+          chmod +x gradlew
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace
 
       - name: Subir log de Gradle
         if: always()
