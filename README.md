@@ -113,11 +113,47 @@ Configurado para dispositivos **ARM64** y simulador **ARM64** en el módulo `sha
 (targets `iosArm64` + `iosSimulatorArm64`, framework estático `Shared`). El `iosApp`
 embebe el framework con `embedAndSignAppleFrameworkForXcode`.
 
-Compilar requiere **macOS con Xcode**; desde Windows no se puede verificar:
+### Compilación en macOS (local)
 
 ```bash
-xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -sdk iphonesimulator
+# 1. Compilar el framework compartido (KMP)
+./gradlew :shared:embedAndSignAppleFrameworkForXcode
+
+# 2. Abrir el proyecto en Xcode y compilar para simulador
+cd iosApp
+xcodebuild -project iosApp.xcodeproj \
+  -scheme iosApp \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -configuration Debug \
+  build \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY="" \
+  CODE_SIGNING_REQUIRED=NO
 ```
+
+### Compilación mediante GitHub Actions (CI)
+
+El workflow `.github/workflows/ios-build.yml` se ejecuta automáticamente en cada push a `main` o `develop`:
+
+1. Compila el framework `Shared` con Gradle (`:shared:embedAndSignAppleFrameworkForXcode`)
+2. Detecta automáticamente un simulador iPhone ARM64 disponible en el runner macOS
+3. Compila la app iOS con `xcodebuild` para simulador (sin firma: `CODE_SIGNING_ALLOWED=NO`)
+4. Sube logs como artifacts (`gradle-build-log`, `ios-build-log`)
+
+**Ver runs**: https://github.com/Jonas26-hash/AndinaSalud/actions/workflows/ios-build.yml
+
+### Diferencia: Compilación vs Ejecución real
+
+| Aspecto | Compilación (CI / `xcodebuild build`) | Ejecución real en dispositivo |
+|---------|----------------------------------------|------------------------------|
+| **Qué hace** | Verifica que el código compila y linkea correctamente | Instala y ejecuta la app en hardware |
+| **Firma** | No requerida (`CODE_SIGNING_ALLOWED=NO`) | Requiere Apple Developer Program ($99/año) + certificado + provisioning profile |
+| **Simulador** | Funciona en CI (macOS runners de GitHub) | Requiere macOS local + Xcode |
+| **Dispositivo físico** | No | Sí, solo con certificado válido |
+| **Estado actual** | ✅ **Verificado en CI** (simulador ARM64) | ❌ No verificado (requiere cuenta Apple Developer) |
+
+> **Nota honesta**: El proyecto compila correctamente para simulador ARM64 (evidencia en GitHub Actions). La ejecución en dispositivo físico real no se ha verificado por requerir cuenta de desarrollador Apple de pago. Desde Windows no es posible compilar iOS.
 
 ---
 

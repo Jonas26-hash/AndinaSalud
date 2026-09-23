@@ -29,7 +29,6 @@ jobs:
 
       - name: Build Shared framework (KMP)
         run: ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace
-        continue-on-error: true
 
       - name: Subir log de Gradle
         if: always()
@@ -41,14 +40,27 @@ jobs:
             shared/build/outputs/**/*
           retention-days: 7
 
+      - name: Listar simuladores disponibles
+        run: xcrun simctl list devices available --json
+
       - name: Build iOS App (simulador)
-        if: success()
         run: |
           cd iosApp
+          # Buscar un simulador iPhone disponible (ARM64)
+          SIMULATOR_ID=$(xcrun simctl list devices available --json | \
+            jq -r '.devices | to_entries[] | select(.key | startswith("com.apple.CoreSimulator.SimRuntime.iOS")) | .value[] | select(.name | test("^iPhone")) | select(.isAvailable == true) | .udid' | head -1)
+          
+          if [ -z "$SIMULATOR_ID" ]; then
+            echo "ERROR: No hay simuladores iPhone disponibles"
+            xcrun simctl list devices available
+            exit 1
+          fi
+          
+          echo "Usando simulador: $SIMULATOR_ID"
           xcodebuild -project iosApp.xcodeproj \
             -scheme iosApp \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' \
+            -destination "id=$SIMULATOR_ID" \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO \
