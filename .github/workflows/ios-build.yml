@@ -30,7 +30,7 @@ jobs:
       - name: Build Shared framework (KMP)
         run: |
           chmod +x gradlew
-          ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode --console=plain --stacktrace -Pcompose.ios.target.architectures=arm64
 
       - name: Subir log de Gradle
         if: always()
